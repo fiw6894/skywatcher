@@ -140,14 +140,31 @@ function updateWeatherIcon(type) {
 
 // ── MQTT ──────────────────────────────────────────────────────
 function connectMQTT() {
+  // ตรวจสอบว่า MQTT library โหลดแล้ว
+  if (typeof mqtt === 'undefined') {
+    setConn('off', 'โหลด Library ไม่สำเร็จ');
+    showToast('❌ MQTT library ไม่พร้อม — รีเฟรชหน้าใหม่');
+    console.error('MQTT library not loaded');
+    return;
+  }
+
   setConn('wait', 'กำลังเชื่อม');
   const cid = 'rainpj_' + Math.random().toString(16).slice(2, 8);
+
+  // ปิด client เก่าถ้ามีอยู่
+  if (mqttClient) {
+    try { mqttClient.end(true); } catch(e) {}
+    mqttClient = null;
+  }
+
   mqttClient = mqtt.connect(MQTT_BROKER, {
     clientId:        cid,
     clean:           true,
     reconnectPeriod: 6000,
-    connectTimeout:  12000,
+    connectTimeout:  15000,
+    keepalive:       60,
   });
+
   mqttClient.on('connect', () => {
     mqttOK = true;
     setConn('on', 'MQTT Online');
@@ -157,9 +174,14 @@ function connectMQTT() {
   mqttClient.on('message', (topic, payload) => {
     try { updateFromESP32(JSON.parse(payload.toString())); } catch(e) {}
   });
-  mqttClient.on('reconnect', () => { mqttOK = false; setConn('wait', 'กำลังเชื่อม'); });
-  mqttClient.on('error',     () => { mqttOK = false; setConn('off', 'Offline'); });
-  mqttClient.on('close',     () => { mqttOK = false; setConn('off', 'Offline'); });
+  mqttClient.on('reconnect', () => { mqttOK = false; setConn('wait', 'กำลังเชื่อมใหม่...'); });
+  mqttClient.on('error',     (err) => {
+    mqttOK = false;
+    setConn('off', 'เชื่อมไม่ได้');
+    console.error('MQTT error:', err);
+  });
+  mqttClient.on('close',     () => { mqttOK = false; setConn('off', 'ตัดการเชื่อมต่อ'); });
+  mqttClient.on('offline',   () => { mqttOK = false; setConn('off', 'Offline'); });
 }
 
 function setConn(s, txt) {
@@ -459,6 +481,11 @@ setInterval(() => {
 }, 30000);
 
 updateSensorUI(3800);
-connectMQTT();
-fetchWeather('Bangkok');
+
+// รอให้ MQTT library โหลดก่อนเชื่อม
+window.addEventListener('load', () => {
+  connectMQTT();
+  fetchWeather('Bangkok');
+});
+
 setInterval(() => fetchWeather(document.getElementById('setup-city').value || 'Bangkok'), 10 * 60 * 1000);
