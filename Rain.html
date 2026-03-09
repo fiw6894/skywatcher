@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Sky Watcher — RainPJ</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.4/mqtt.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#f0f4f8;
+  --white:#fff;
+  --blue:#2563eb;
+  --blue2:#3b82f6;
+  --blue-bg:#eff6ff;
+  --green:#16a34a;
+  --green-bg:#f0fdf4;
+  --green-lt:#dcfce7;
+  --red:#dc2626;
+  --yellow-bg:#fefce8;
+  --yellow-bd:#fde68a;
+  --yellow:#f59e0b;
+  --text:#0f172a;
+  --text2:#374151;
+  --text3:#6b7280;
+  --text4:#9ca3af;
+  --bd:#e5e7eb;
+  --bd2:#f3f4f6;
+  --sh:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+  --r:16px;--rs:12px;
+  --font:'Sarabun',sans-serif;
+  --display:'Outfit',sans-serif;
+}
+body{background:var(--bg);font-family:var(--font);color:var(--text);min-height:100vh}
+.app{max-width:480px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;padding-bottom:80px}
+
+/* TOPBAR */
+.topbar{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);padding:20px 20px 16px;position:sticky;top:0;z-index:10;}
+.topbar-inner{display:flex;justify-content:space-between;align-items:center}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-icon{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.2);}
+.brand-icon svg{width:20px;height:20px;color:white}
+.brand-name{font-family:var(--display);font-size:18px;font-weight:800;color:white;letter-spacing:-0.3px;line-height:1}
+.brand-sub{font-size:11px;color:rgba(255,255,255,0.65);margin-top:1px;font-weight:400}
+.conn-pill{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);padding:5px 11px;border-radius:20px;backdrop-filter:blur(8px);}
+.conn-dot{width:6px;height:6px;border-radius:50%;background:#4ade80}
+.conn-dot.off{background:#f87171}
+.conn-dot.wait{background:#fbbf24;animation:blink 1s infinite}
+.conn-txt{font-size:11px;font-weight:600;color:white;letter-spacing:.5px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* PAGES */
+.page{display:none;padding:16px}
+.page.active{display:block}
+
+/* WEATHER CARD */
+.weather-card{background:linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%);border-radius:20px;padding:20px;color:white;margin-bottom:14px;position:relative;overflow:hidden;transition:background 1.2s ease;box-shadow:0 8px 24px rgba(37,99,235,0.3);}
+.weather-card.raining{background:linear-gradient(135deg,#0f2040 0%,#1e3a5f 60%,#1a3350 100%);box-shadow:0 8px 24px rgba(15,32,64,0.4);}
+.weather-card::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.05);}
+.wc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.wc-label{font-size:12px;font-weight:500;opacity:.75;letter-spacing:.5px}
+.wc-icon-svg svg{width:48px;height:48px;color:rgba(255,255,255,0.9)}
+.wc-main{display:flex;align-items:flex-end;gap:12px;margin-bottom:6px}
+.wc-temp{font-family:var(--display);font-size:54px;font-weight:800;line-height:1;letter-spacing:-2px}
+.wc-detail{padding-bottom:6px}
+.wc-desc{font-size:14px;font-weight:600;opacity:.9}
+.wc-loc{font-size:12px;opacity:.65;margin-top:2px}
+.wc-time{font-size:11px;opacity:.55;margin-top:2px}
+.wc-divider{height:1px;background:rgba(255,255,255,0.15);margin:14px 0}
+.wc-stats{display:grid;grid-template-columns:1fr 1fr 1fr}
+.wc-stat{text-align:center}
+.wc-stat svg{width:20px;height:20px;opacity:.85;margin-bottom:4px}
+.wc-stat-label{font-size:10px;opacity:.6;letter-spacing:.3px}
+.wc-stat-val{font-size:15px;font-weight:700;margin-top:2px}
+
+/* SENSOR CARD */
+.sensor-card{background:var(--white);border-radius:var(--r);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh);}
+.sensor-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.sensor-title{font-size:14px;font-weight:700;color:var(--text)}
+.sensor-status{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:12px;}
+.sensor-status.dry{background:#f0fdf4;color:#16a34a}
+.sensor-status.wet{background:#eff6ff;color:#2563eb}
+.sensor-status.rain{background:#fef2f2;color:#dc2626}
+
+/* SVG GAUGE */
+.sensor-gauge{display:flex;flex-direction:column;align-items:center;margin:4px 0 2px;}
+.sensor-bar-row{margin-top:10px}
+.sbar-top{display:flex;justify-content:space-between;margin-bottom:5px}
+.sbar-label{font-size:12px;color:var(--text3);font-weight:500}
+.sbar-num{font-size:12px;font-weight:700;color:var(--blue)}
+.sbar{height:7px;border-radius:4px;background:var(--bd);overflow:hidden}
+.sbar-fill{height:100%;border-radius:4px;background:linear-gradient(to right,#22c55e,#3b82f6,#ef4444);transition:width .8s cubic-bezier(.4,0,.2,1)}
+
+/* MONITOR CARD */
+.card{background:var(--white);border-radius:var(--r);padding:16px 18px;margin-bottom:14px;box-shadow:var(--sh)}
+.card-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px}
+.monitor-row{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--bd2)}
+.monitor-row:last-child{border-bottom:none;padding-bottom:0}
+.mon-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mon-icon.rain{background:#eff6ff} .mon-icon.rain svg{color:#3b82f6;width:18px;height:18px}
+.mon-icon.sun{background:#fff7ed}  .mon-icon.sun svg{color:#f59e0b;width:18px;height:18px}
+.mon-icon.temp{background:#fef2f2} .mon-icon.temp svg{color:#ef4444;width:18px;height:18px}
+.mon-info{flex:1}
+.mon-name{font-size:14px;font-weight:600}
+.mon-sub{font-size:12px;color:var(--text3);margin-top:1px}
+.mon-right{text-align:right}
+.mon-tag{font-size:10px;color:var(--text4)}
+.mon-val{font-size:14px;font-weight:700}
+
+/* WARNING BOX */
+.warning-box{background:var(--yellow-bg);border:1px solid var(--yellow-bd);border-radius:var(--rs);padding:14px 16px;margin-bottom:14px}
+.warning-title{font-size:13px;font-weight:700;color:#92400e;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.warning-title svg{width:15px;height:15px}
+.warning-item{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#78350f;margin-bottom:5px}
+.warning-item:last-child{margin-bottom:0}
+.warning-dot{width:6px;height:6px;border-radius:50%;background:var(--yellow);flex-shrink:0;margin-top:5px}
+
+/* STATUS PAGE */
+.section-title{font-size:13px;font-weight:700;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px}
+.device-card{background:var(--white);border-radius:var(--r);padding:15px 16px;margin-bottom:10px;box-shadow:var(--sh)}
+.device-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.device-icon-wrap{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .3s}
+.device-icon-wrap.open{background:#f0fdf4}   .device-icon-wrap.open svg{color:#16a34a;width:22px;height:22px}
+.device-icon-wrap.closed{background:#f3f4f6} .device-icon-wrap.closed svg{color:#6b7280;width:22px;height:22px}
+.device-icon-wrap.out{background:#eff6ff}    .device-icon-wrap.out svg{color:#2563eb;width:22px;height:22px}
+.device-icon-wrap.in{background:#f0fdf4}     .device-icon-wrap.in svg{color:#16a34a;width:22px;height:22px}
+.device-info{flex:1}
+.device-name{font-size:15px;font-weight:600}
+.device-loc{font-size:12px;color:var(--text3);margin-top:1px}
+.device-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}
+.device-badge.open{background:var(--green-lt);color:var(--green)}
+.device-badge.closed{background:var(--bd2);color:var(--text3)}
+.device-badge.out{background:var(--blue-bg);color:var(--blue)}
+.device-badge.in{background:var(--green-lt);color:var(--green)}
+.toggle-row{display:flex;align-items:center;justify-content:space-between}
+.toggle-label{font-size:13px;color:var(--text3)}
+.toggle{position:relative;width:46px;height:26px;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#d1d5db;border-radius:13px;transition:background .3s}
+.toggle-slider::before{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:white;top:3px;left:3px;transition:transform .3s;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+.toggle input:checked+.toggle-slider{background:var(--text)}
+.toggle input:checked+.toggle-slider::before{transform:translateX(20px)}
+
+/* ACTION BUTTONS */
+.action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.action-row.triple{grid-template-columns:1fr 1fr 1fr}
+.btn-primary{background:var(--blue);color:white;border:none;padding:13px;border-radius:var(--rs);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;width:100%}
+.btn-primary:active{transform:scale(.98);background:#1d4ed8}
+.btn-secondary{background:var(--white);color:var(--text);border:1px solid var(--bd);padding:13px;border-radius:var(--rs);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;width:100%}
+.btn-secondary:active{transform:scale(.98)}
+.btn-success{background:#16a34a;color:white;border:none;padding:13px;border-radius:var(--rs);font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;width:100%}
+.btn-success:active{transform:scale(.98)}
+
+/* RECORD */
+.tab-row{display:flex;background:var(--white);border-radius:10px;padding:4px;margin-bottom:14px;box-shadow:var(--sh)}
+.tab-btn{flex:1;padding:9px;border:none;background:transparent;border-radius:8px;font-family:var(--font);font-size:14px;font-weight:600;color:var(--text3);cursor:pointer;transition:all .2s}
+.tab-btn.active{background:var(--text);color:white}
+.rec-header{background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:var(--rs);padding:12px 14px;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+.rec-header svg{width:20px;height:20px;color:var(--blue)}
+.rec-header-title{font-size:14px;font-weight:700;color:var(--blue)}
+.rec-header-sub{font-size:12px;color:var(--blue2);margin-top:1px}
+.rec-item{background:var(--white);border-radius:var(--rs);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;box-shadow:var(--sh)}
+.rec-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.rec-icon.open{background:var(--green-bg)} .rec-icon.open svg{color:var(--green);width:17px;height:17px}
+.rec-icon.closed{background:var(--bd2)}    .rec-icon.closed svg{color:var(--text3);width:17px;height:17px}
+.rec-icon.event{background:var(--blue-bg)} .rec-icon.event svg{color:var(--blue);width:17px;height:17px}
+.rec-info{flex:1}
+.rec-name{font-size:14px;font-weight:600}
+.rec-time{font-size:12px;color:var(--text3);margin-top:1px}
+.rec-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px}
+.rec-badge.open{background:var(--green-lt);color:var(--green)}
+.rec-badge.closed{background:var(--bd2);color:var(--text3)}
+
+/* SETUP */
+.setup-card{background:var(--white);border-radius:var(--r);margin-bottom:12px;box-shadow:var(--sh);overflow:hidden}
+.setup-card-hd{display:flex;align-items:center;gap:12px;padding:15px 16px;border-bottom:1px solid var(--bd2)}
+.setup-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center}
+.setup-icon.loc{background:#eff6ff}  .setup-icon.loc svg{color:var(--blue);width:18px;height:18px}
+.setup-icon.rain{background:#eff6ff} .setup-icon.rain svg{color:var(--blue);width:18px;height:18px}
+.setup-icon.bell{background:#fefce8} .setup-icon.bell svg{color:var(--yellow);width:18px;height:18px}
+.setup-icon.cpu{background:#f3f4f6}  .setup-icon.cpu svg{color:var(--text3);width:18px;height:18px}
+.setup-card-title{font-size:15px;font-weight:700}
+.setup-card-sub{font-size:12px;color:var(--text3);margin-top:1px}
+.setup-body{padding:14px 16px}
+.setup-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bd2)}
+.setup-row:last-child{border-bottom:none;padding-bottom:0}
+.setup-row-label{font-size:14px;font-weight:600}
+.setup-row-sub{font-size:12px;color:var(--text3);margin-top:2px}
+.setup-input{width:100%;border:1px solid var(--bd);border-radius:10px;padding:10px 12px;font-family:var(--font);font-size:14px;color:var(--text);background:var(--white);outline:none;margin-top:8px}
+.setup-input:focus{border-color:var(--blue)}
+.setup-slider{width:100%;margin:10px 0 4px;accent-color:var(--text)}
+.slider-row{display:flex;justify-content:space-between;font-size:11px;color:var(--text4)}
+.setup-select{border:1px solid var(--bd);border-radius:10px;padding:8px 12px;font-family:var(--font);font-size:14px;color:var(--text);background:var(--white);outline:none;min-width:110px}
+.dev-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd2);font-size:14px}
+.dev-row:last-child{border-bottom:none}
+.dev-label{color:var(--text3)}
+.dev-val{font-weight:600}
+
+/* BOTTOM NAV */
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:rgba(255,255,255,0.95);backdrop-filter:blur(20px);border-top:1px solid rgba(0,0,0,0.06);display:flex;padding:8px 8px 16px;z-index:20;gap:4px;box-shadow:0 -4px 20px rgba(0,0,0,0.06);}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;padding:8px 4px;color:var(--text4);transition:all .2s;border-radius:12px;font-family:var(--font);position:relative;}
+.nav-btn.active{color:var(--blue)}
+.nav-btn.active::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:32px;height:3px;background:var(--blue);border-radius:0 0 4px 4px;}
+.nav-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;transition:background .2s;}
+.nav-btn.active .nav-icon{background:var(--blue-bg)}
+.nav-icon svg{width:20px;height:20px}
+.nav-label{font-size:10px;font-weight:700;letter-spacing:.3px}
+
+/* RAIN FX */
+#rain-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;opacity:0;transition:opacity 1.2s ease}
+#rain-canvas.active{opacity:1}
+#rain-overlay{position:fixed;inset:0;background:linear-gradient(180deg,rgba(15,32,64,.2) 0%,rgba(10,20,50,.3) 100%);pointer-events:none;z-index:4;opacity:0;transition:opacity 1.2s ease}
+#rain-overlay.active{opacity:1}
+
+/* COUNTDOWN */
+#countdown-badge{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:#1e3a5f;color:#93c5fd;border:1px solid rgba(147,197,253,.3);padding:9px 18px;border-radius:20px;font-size:13px;font-weight:600;z-index:200;display:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.25);animation:fadeUp .4s ease;}
+@keyframes fadeUp{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* TOAST */
+.toast{position:fixed;top:84px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.92);color:white;padding:10px 18px;border-radius:20px;font-size:13px;font-weight:500;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;backdrop-filter:blur(10px);}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<canvas id="rain-canvas"></canvas>
+<div id="rain-overlay"></div>
+<div id="countdown-badge">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:middle;margin-right:4px"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M9 3h6M12 3v2"/></svg>
+  เปิดหน้าต่างใน <span id="countdown-sec">120</span> วินาที
+</div>
+<div class="toast" id="toast"></div>
+
+<div class="app">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="19" x2="8" y2="21"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="16" y1="19" x2="16" y2="21"/><line x1="16" y1="13" x2="16" y2="15"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="12" y1="15" x2="12" y2="17"/></svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">Sky Watcher</div>
+        <div class="brand-sub" id="pageSub">ระบบเฝ้าตรวจสภาพอากาศ</div>
+      </div>
+    </div>
+    <div class="conn-pill" id="connPill">
+      <div class="conn-dot wait" id="connDot"></div>
+      <span class="conn-txt" id="connTxt">กำลังเชื่อม</span>
+    </div>
+  </div>
+</div>
+
+<!-- HOME -->
+<div class="page active" id="page-home">
+
+  <div class="weather-card" id="weatherCard">
+    <div class="wc-top">
+      <div class="wc-label">พยากรณ์อากาศ — <span id="wc-city">กำลังโหลด...</span></div>
+      <div class="wc-icon-svg" id="wc-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+      </div>
+    </div>
+    <div class="wc-main">
+      <div class="wc-temp" id="wc-temp">--°</div>
+      <div class="wc-detail">
+        <div class="wc-desc" id="wc-desc">กำลังโหลด</div>
+        <div class="wc-time" id="wc-time">-- น.</div>
+      </div>
+    </div>
+    <div class="wc-divider"></div>
+    <div class="wc-stats">
+      <div class="wc-stat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5S13 6 12 2c0 0-7 6-7 13a7 7 0 0 0 7 7z"/></svg>
+        <div class="wc-stat-label">ความชื้น</div>
+        <div class="wc-stat-val" id="wc-hum">--%</div>
+      </div>
+      <div class="wc-stat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>
+        <div class="wc-stat-label">ลม km/h</div>
+        <div class="wc-stat-val" id="wc-wind">--</div>
+      </div>
+      <div class="wc-stat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="19" x2="8" y2="21"/><line x1="16" y1="19" x2="16" y2="21"/><line x1="12" y1="21" x2="12" y2="23"/></svg>
+        <div class="wc-stat-label">ฝนตก</div>
+        <div class="wc-stat-val" id="wc-rain-pct">--%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sensor Card -->
+  <div class="sensor-card">
+    <div class="sensor-header">
+      <div class="sensor-title">ตรวจจับฝน</div>
+      <div class="sensor-status dry" id="sensor-status">แห้ง</div>
+    </div>
+    <div class="sensor-gauge">
+      <svg width="200" height="110" viewBox="0 0 200 110" style="overflow:visible">
+        <defs>
+          <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stop-color="#22c55e"/>
+            <stop offset="35%"  stop-color="#fbbf24"/>
+            <stop offset="65%"  stop-color="#f97316"/>
+            <stop offset="100%" stop-color="#ef4444"/>
+          </linearGradient>
+        </defs>
+        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#e5e7eb" stroke-width="16" stroke-linecap="round"/>
+        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#gaugeGrad)" stroke-width="16" stroke-linecap="round"/>
+        <line id="gauge-needle" x1="100" y1="100" x2="100" y2="28" stroke="#1e293b" stroke-width="3.5" stroke-linecap="round" transform="rotate(-90 100 100)"/>
+        <circle cx="100" cy="100" r="9" fill="#1e293b"/>
+        <circle cx="100" cy="100" r="5" fill="white"/>
+        <text id="gauge-val" x="100" y="85" text-anchor="middle" font-family="Outfit,sans-serif" font-size="20" font-weight="800" fill="#0f172a">3800</text>
+        <text x="20" y="118" text-anchor="middle" font-family="Sarabun,sans-serif" font-size="10" fill="#9ca3af">แห้ง</text>
+        <text x="100" y="118" text-anchor="middle" font-family="Sarabun,sans-serif" font-size="10" fill="#9ca3af">กลาง</text>
+        <text x="180" y="118" text-anchor="middle" font-family="Sarabun,sans-serif" font-size="10" fill="#9ca3af">เปียก</text>
+      </svg>
+    </div>
+    <div class="sensor-bar-row">
+      <div class="sbar-top">
+        <span class="sbar-label">ระดับความชื้นเซ็นเซอร์</span>
+        <span class="sbar-num" id="sensor-val">3800</span>
+      </div>
+      <div class="sbar"><div class="sbar-fill" id="sensor-fill" style="width:5%"></div></div>
+    </div>
+  </div>
+
+  <!-- Monitor Card -->
+  <div class="card">
+    <div class="card-title">ระบบเฝ้าตรวจติดตาม</div>
+    <div class="monitor-row">
+      <div class="mon-icon rain"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="19" x2="8" y2="21"/><line x1="8" y1="13" x2="8" y2="15"/><line x1="16" y1="19" x2="16" y2="21"/><line x1="16" y1="13" x2="16" y2="15"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="12" y1="15" x2="12" y2="17"/></svg></div>
+      <div class="mon-info"><div class="mon-name">ติดตามฝน</div><div class="mon-sub" id="mon-rain-sub">สถานะปกติ</div></div>
+      <div class="mon-right"><div class="mon-tag">อัปเดต</div><div class="mon-val" id="mon-time">--:-- น.</div></div>
+    </div>
+    <div class="monitor-row">
+      <div class="mon-icon sun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg></div>
+      <div class="mon-info"><div class="mon-name">อุณหภูมิสูงสุด</div><div class="mon-sub" id="mon-sun-sub">วันนี้</div></div>
+      <div class="mon-right"><div class="mon-tag">°C</div><div class="mon-val" id="mon-temp-max">--</div></div>
+    </div>
+    <div class="monitor-row">
+      <div class="mon-icon temp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg></div>
+      <div class="mon-info"><div class="mon-name">อุณหภูมิต่ำสุด</div><div class="mon-sub" id="mon-temp-sub">วันนี้</div></div>
+      <div class="mon-right"><div class="mon-tag">°C</div><div class="mon-val" id="mon-temp-min">--</div></div>
+    </div>
+  </div>
+
+  <div class="warning-box" id="warning-box" style="display:none">
+    <div class="warning-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      แจ้งเตือนสภาพอากาศ
+    </div>
+    <div class="warning-item"><div class="warning-dot"></div><span>ตรวจพบฝนจากเซ็นเซอร์ — ระบบกำลังดำเนินการ</span></div>
+    <div class="warning-item"><div class="warning-dot"></div><span>แนะนำให้เก็บราวผ้าและปิดหน้าต่างโดยเร็ว</span></div>
+  </div>
+
+</div>
+
+<!-- STATUS -->
+<div class="page" id="page-status">
+  <div class="section-title">หน้าต่างในบ้าน</div>
+  <div class="device-card" id="win1-card">
+    <div class="device-top">
+      <div class="device-icon-wrap open" id="win1-icon-wrap"></div>
+      <div class="device-info"><div class="device-name">หน้าต่าง 1</div><div class="device-loc">ห้องนั่งเล่น · <span id="win1-loc">เปิด</span></div></div>
+      <div class="device-badge open" id="win1-badge">เปิด</div>
+    </div>
+    <div class="toggle-row"><span class="toggle-label">สลับสถานะ</span><label class="toggle"><input type="checkbox" checked id="win1-toggle" onchange="toggleDevice('win1')"><span class="toggle-slider"></span></label></div>
+  </div>
+  <div class="device-card" id="win2-card">
+    <div class="device-top">
+      <div class="device-icon-wrap open" id="win2-icon-wrap"></div>
+      <div class="device-info"><div class="device-name">หน้าต่าง 2</div><div class="device-loc">ห้องนอน · <span id="win2-loc">เปิด</span></div></div>
+      <div class="device-badge open" id="win2-badge">เปิด</div>
+    </div>
+    <div class="toggle-row"><span class="toggle-label">สลับสถานะ</span><label class="toggle"><input type="checkbox" checked id="win2-toggle" onchange="toggleDevice('win2')"><span class="toggle-slider"></span></label></div>
+  </div>
+  <div class="device-card" id="win3-card">
+    <div class="device-top">
+      <div class="device-icon-wrap closed" id="win3-icon-wrap"></div>
+      <div class="device-info"><div class="device-name">หน้าต่าง 3</div><div class="device-loc">ห้องครัว · <span id="win3-loc">ปิด</span></div></div>
+      <div class="device-badge closed" id="win3-badge">ปิด</div>
+    </div>
+    <div class="toggle-row"><span class="toggle-label">สลับสถานะ</span><label class="toggle"><input type="checkbox" id="win3-toggle" onchange="toggleDevice('win3')"><span class="toggle-slider"></span></label></div>
+  </div>
+  <div class="section-title" style="margin-top:4px">ราวเก็บผ้า</div>
+  <div class="device-card" id="laundry-card">
+    <div class="device-top">
+      <div class="device-icon-wrap out" id="laundry-icon-wrap"></div>
+      <div class="device-info"><div class="device-name">ราวตากผ้า</div><div class="device-loc">ระเบียงด้านหลัง</div></div>
+      <div class="device-badge out" id="laundry-badge">กางออก</div>
+    </div>
+    <div class="toggle-row"><span class="toggle-label">เก็บหรือกางราว</span><label class="toggle"><input type="checkbox" checked id="laundry-toggle" onchange="toggleDevice('laundry')"><span class="toggle-slider"></span></label></div>
+  </div>
+  <div class="action-row triple">
+    <button class="btn-primary" onclick="closeAllWindows()">ปิดทั้งหมด</button>
+    <button class="btn-success" onclick="openAllWindows()">เปิดทั้งหมด</button>
+    <button class="btn-secondary" onclick="collectLaundry()">เก็บราวผ้า</button>
+  </div>
+</div>
+
+<!-- RECORD -->
+<div class="page" id="page-record">
+  <div class="tab-row">
+    <button class="tab-btn active" id="rec-tab-win" onclick="switchRecTab('window')">หน้าต่าง</button>
+    <button class="tab-btn" id="rec-tab-rain" onclick="switchRecTab('rain')">ฝนตก</button>
+  </div>
+  <div id="rec-window-content">
+    <div class="rec-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <div><div class="rec-header-title">ประวัติการเปิด/ปิดหน้าต่าง</div><div class="rec-header-sub" id="rec-count">บันทึกทั้งหมด 0 รายการ</div></div>
+    </div>
+    <div id="rec-list"><div style="text-align:center;padding:30px;color:var(--text4);font-size:14px">ยังไม่มีประวัติ</div></div>
+  </div>
+  <div id="rec-rain-content" style="display:none">
+    <div class="rec-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="19" x2="8" y2="21"/><line x1="16" y1="19" x2="16" y2="21"/><line x1="12" y1="21" x2="12" y2="23"/></svg>
+      <div><div class="rec-header-title">ประวัติการตรวจจับฝน</div><div class="rec-header-sub" id="rec-rain-count">บันทึกทั้งหมด 0 รายการ</div></div>
+    </div>
+    <div id="rec-rain-list"><div style="text-align:center;padding:30px;color:var(--text4);font-size:14px">ยังไม่มีประวัติ</div></div>
+  </div>
+</div>
+
+<!-- SETUP -->
+<div class="page" id="page-setup">
+  <div class="setup-card">
+    <div class="setup-card-hd">
+      <div class="setup-icon loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+      <div><div class="setup-card-title">ตำแหน่งที่ตั้ง</div><div class="setup-card-sub">ใช้ในการดึงข้อมูลพยากรณ์อากาศ</div></div>
+    </div>
+    <div class="setup-body">
+      <div style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:6px">เมือง/จังหวัด</div>
+      <input class="setup-input" type="text" value="Bangkok" id="setup-city" placeholder="เช่น Bangkok, Chiang Mai">
+      <button class="btn-primary" style="margin-top:10px;font-size:13px;padding:10px" onclick="fetchWeather(document.getElementById('setup-city').value)">อัปเดตพยากรณ์อากาศ</button>
+    </div>
+  </div>
+  <div class="setup-card">
+    <div class="setup-card-hd">
+      <div class="setup-icon rain"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="19" x2="8" y2="21"/><line x1="16" y1="19" x2="16" y2="21"/><line x1="12" y1="21" x2="12" y2="23"/></svg></div>
+      <div><div class="setup-card-title">การตรวจจับฝน</div><div class="setup-card-sub">ตั้งค่าการทำงานอัตโนมัติ</div></div>
+    </div>
+    <div class="setup-body">
+      <div class="setup-row"><div><div class="setup-row-label">ปิดหน้าต่างอัตโนมัติ</div><div class="setup-row-sub">เมื่อตรวจพบฝนจากเซ็นเซอร์</div></div><label class="toggle"><input type="checkbox" checked id="setup-auto"><span class="toggle-slider"></span></label></div>
+      <div class="setup-row" style="display:block;border-bottom:none">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div class="setup-row-label">ความไวในการตรวจจับ</div><span style="font-size:14px;font-weight:700;color:var(--blue)" id="sens-label">50%</span></div>
+        <input type="range" class="setup-slider" min="0" max="100" value="50" id="sens-slider" oninput="document.getElementById('sens-label').textContent=this.value+'%'">
+        <div class="slider-row"><span>0%</span><span>50%</span><span>100%</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="setup-card">
+    <div class="setup-card-hd">
+      <div class="setup-icon bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+      <div><div class="setup-card-title">การแจ้งเตือน</div><div class="setup-card-sub">จัดการการแจ้งเตือนจากระบบ</div></div>
+    </div>
+    <div class="setup-body">
+      <div class="setup-row"><div><div class="setup-row-label">เปิดการแจ้งเตือน</div><div class="setup-row-sub">รับการแจ้งเตือนสภาพอากาศ</div></div><label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label></div>
+      <div class="setup-row" style="border-bottom:none"><div class="setup-row-label">แจ้งเตือนล่วงหน้า</div><select class="setup-select"><option>30 นาที</option><option>15 นาที</option><option>1 ชั่วโมง</option></select></div>
+    </div>
+  </div>
+  <div class="setup-card">
+    <div class="setup-card-hd">
+      <div class="setup-icon cpu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg></div>
+      <div><div class="setup-card-title">ข้อมูลอุปกรณ์</div><div class="setup-card-sub">ESP32 Rain Detection</div></div>
+    </div>
+    <div class="setup-body">
+      <div class="dev-row"><span class="dev-label">เวอร์ชัน</span><span class="dev-val">1.0.0</span></div>
+      <div class="dev-row"><span class="dev-label">อัปเดตล่าสุด</span><span class="dev-val" id="last-update">--</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="nav-home" onclick="goPage('home')">
+    <div class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+    <div class="nav-label">Home</div>
+  </button>
+  <button class="nav-btn" id="nav-status" onclick="goPage('status')">
+    <div class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="2" y1="12" x2="22" y2="12"/></svg></div>
+    <div class="nav-label">Status</div>
+  </button>
+  <button class="nav-btn" id="nav-record" onclick="goPage('record')">
+    <div class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+    <div class="nav-label">Record</div>
+  </button>
+  <button class="nav-btn" id="nav-setup" onclick="goPage('setup')">
+    <div class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+    <div class="nav-label">Setup</div>
+  </button>
+</nav>
+
+</div>
+
+<script>
+const MQTT_BROKER  = "wss://broker.hivemq.com:8884/mqtt";
+const TOPIC_SENSOR = "home/rain/sensor";
+const TOPIC_CMD    = "home/rain/command";
+const THRESHOLD    = 2000;
+
+let mqttClient = null, mqttOK = false;
+const state = {
+  sensorVal: 3800,
+  isRaining: false,
+  windows: { win1: true, win2: true, win3: false },
+  laundry: true
+};
+const winRec = [], rainRec = [];
+
+const pageSubs = {
+  home:   'ระบบเฝ้าตรวจสภาพอากาศ',
+  status: 'ควบคุมหน้าต่างและราวผ้า',
+  record: 'บันทึกประวัติการทำงาน',
+  setup:  'การตั้งค่าระบบ'
+};
+
+function goPage(p) {
+  document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(x => x.classList.remove('active'));
+  document.getElementById('nav-' + p).classList.add('active');
+  document.getElementById('pageSub').textContent = pageSubs[p];
+  if (p === 'record') renderRecords();
+}
+
+// ─── Weather ───────────────────────────────
+const CITY_COORDS = {
+  'Bangkok':    { lat: 13.75, lon: 100.52, name: 'กรุงเทพมหานคร' },
+  'Chiang Mai': { lat: 18.79, lon: 98.98,  name: 'เชียงใหม่' },
+  'Phuket':     { lat: 7.89,  lon: 98.39,  name: 'ภูเก็ต' },
+  'Pattaya':    { lat: 12.93, lon: 100.88, name: 'พัทยา' },
+  'Khon Kaen':  { lat: 16.44, lon: 102.83, name: 'ขอนแก่น' },
+};
+
+async function fetchWeather(city = 'Bangkok') {
+  const c = CITY_COORDS[city] || CITY_COORDS['Bangkok'];
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weathercode&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FBangkok&forecast_days=1`;
+    const res = await fetch(url);
+    const d   = await res.json();
+    const cur = d.current, day = d.daily;
+    document.getElementById('wc-temp').textContent      = Math.round(cur.temperature_2m) + '°';
+    document.getElementById('wc-hum').textContent       = cur.relative_humidity_2m + '%';
+    document.getElementById('wc-wind').textContent      = Math.round(cur.wind_speed_10m);
+    document.getElementById('wc-rain-pct').textContent  = (day.precipitation_probability_max[0] || 0) + '%';
+    document.getElementById('wc-city').textContent      = c.name;
+    document.getElementById('wc-desc').textContent      = wmoDesc(cur.weathercode);
+    document.getElementById('mon-temp-max').textContent = Math.round(day.temperature_2m_max[0]);
+    document.getElementById('mon-temp-min').textContent = Math.round(day.temperature_2m_min[0]);
+    const now = new Date();
+    document.getElementById('wc-time').textContent = 'อัปเดต ' + now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0') + ' น.';
+    const isRainCode = [51,53,55,61,63,65,71,73,75,80,81,82,95,96,99].includes(cur.weathercode);
+    const isSunny    = [0, 1].includes(cur.weathercode);
+    updateWeatherIcon(isRainCode ? 'rain' : isSunny ? 'sun' : 'cloud');
+  } catch(e) {
+    document.getElementById('wc-city').textContent = 'โหลดไม่ได้';
+  }
+}
+
+function wmoDesc(code) {
+  const m = {0:'ท้องฟ้าแจ่มใส',1:'มีเมฆบางส่วน',2:'มีเมฆมาก',3:'มีเมฆครึ้ม',45:'หมอก',48:'หมอกน้ำแข็ง',51:'ฝนปรอยเล็กน้อย',53:'ฝนปรอย',55:'ฝนปรอยหนัก',61:'ฝนเล็กน้อย',63:'ฝนปานกลาง',65:'ฝนหนัก',80:'ฝนชั่วคราว',81:'ฝนชั่วคราวปานกลาง',82:'ฝนชั่วคราวหนัก',95:'พายุฝนฟ้าคะนอง',96:'พายุลูกเห็บ',99:'พายุลูกเห็บหนัก'};
+  return m[code] || 'สภาพอากาศแปรปรวน';
+}
+
+const SVG_CLOUD = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>`;
+const SVG_RAIN  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/><line x1="8" y1="19" x2="8" y2="21"/><line x1="16" y1="19" x2="16" y2="21"/><line x1="12" y1="21" x2="12" y2="23"/></svg>`;
+const SVG_SUN   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
+const SVG_WIN_OPEN   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="6" y1="7" x2="8" y2="7"/><line x1="16" y1="7" x2="18" y2="7"/></svg>`;
+const SVG_WIN_CLOSED = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="2" fill="rgba(107,114,128,0.1)"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M11 12v-1.5a1 1 0 0 1 2 0V12"/></svg>`;
+const SVG_LAUNDRY_OUT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="M12 3v16"/><path d="M8 7 3 19"/><path d="m16 7 5 12"/><path d="M10 3a2 2 0 0 1 4 0"/></svg>`;
+const SVG_LAUNDRY_IN  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`;
+
+function updateWeatherIcon(type) {
+  document.getElementById('wc-icon').innerHTML = type === 'rain' ? SVG_RAIN : type === 'sun' ? SVG_SUN : SVG_CLOUD;
+}
+
+// ─── MQTT ──────────────────────────────────
+function connectMQTT() {
+  setConn('wait', 'กำลังเชื่อม');
+  const cid = 'rainpj_' + Math.random().toString(16).slice(2, 8);
+  mqttClient = mqtt.connect(MQTT_BROKER, { clientId: cid, clean: true, reconnectPeriod: 6000, connectTimeout: 12000 });
+  mqttClient.on('connect', () => {
+    mqttOK = true;
+    setConn('on', 'MQTT Online');
+    mqttClient.subscribe(TOPIC_SENSOR, { qos: 1 });
+    showToast('✅ เชื่อมต่อ MQTT สำเร็จ');
+  });
+  mqttClient.on('message', (topic, payload) => {
+    try { updateFromESP32(JSON.parse(payload.toString())); } catch(e) {}
+  });
+  mqttClient.on('reconnect', () => { mqttOK = false; setConn('wait', 'กำลังเชื่อม'); });
+  mqttClient.on('error',    () => { mqttOK = false; setConn('off', 'Offline'); });
+  mqttClient.on('close',    () => { mqttOK = false; setConn('off', 'Offline'); });
+}
+
+function setConn(s, txt) {
+  const dot = document.getElementById('connDot');
+  dot.className = 'conn-dot' + (s === 'on' ? '' : s === 'off' ? ' off' : ' wait');
+  document.getElementById('connTxt').textContent = txt;
+}
+
+function sendCmd(obj) {
+  if (!mqttOK) { showToast('⚠️ ยังไม่ได้เชื่อมต่อ MQTT'); return; }
+  mqttClient.publish(TOPIC_CMD, JSON.stringify(obj), { qos: 1 });
+}
+
+// ─── รับข้อมูลจาก ESP32 ───────────────────
+function updateFromESP32(d) {
+  const now = new Date();
+  const ts  = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+  state.sensorVal = d.sensor_raw ?? state.sensorVal;
+  const wasRaining = state.isRaining;
+  state.isRaining  = d.is_raining ?? (state.sensorVal < THRESHOLD);
+  updateSensorUI(state.sensorVal);
+
+  if (state.isRaining !== wasRaining) {
+    addRainRecord(state.isRaining ? 'ตรวจพบฝน' : 'ฝนหยุดตก', ts);
+    document.getElementById('warning-box').style.display   = state.isRaining ? 'block' : 'none';
+    document.getElementById('mon-rain-sub').textContent     = state.isRaining ? 'ตรวจพบฝน ☔' : 'ไม่มีฝน';
+
+    if (state.isRaining) {
+      startRain();
+      clearAutoOpenTimer();
+      if (document.getElementById('setup-auto').checked) {
+        closeAllWindows();
+        setLaundryState(false, true);
+        showToast('🌧 ฝนตก! ปิดหน้าต่าง+เก็บผ้าแล้ว');
+      }
+    } else {
+      stopRain();
+      startAutoOpenCountdown();
+    }
+  }
+
+  // ← รับ state แยกทีละบาน (ไม่ปิดทุกบานพร้อมกัน)
+  if (d.win1_closed !== undefined) setWindowState('win1', !d.win1_closed, null, false);
+  if (d.win2_closed !== undefined) setWindowState('win2', !d.win2_closed, null, false);
+  if (d.win3_closed !== undefined) setWindowState('win3', !d.win3_closed, null, false);
+
+  if (d.laundry_in !== undefined) setLaundryState(!d.laundry_in, false);
+
+  document.getElementById('mon-time').textContent   = ts + ' น.';
+  document.getElementById('last-update').textContent = ts + ' น.';
+}
+
+// ─── Sensor UI ─────────────────────────────
+function updateSensorUI(val) {
+  const pct = Math.max(0, Math.min(100, Math.round((1 - val / 4095) * 100)));
+  document.getElementById('sensor-val').textContent  = val;
+  document.getElementById('gauge-val').textContent   = val;
+  document.getElementById('sensor-fill').style.width = pct + '%';
+  const deg = -90 + (pct / 100) * 180;
+  document.getElementById('gauge-needle').setAttribute('transform', `rotate(${deg} 100 100)`);
+  const sb = document.getElementById('sensor-status');
+  if (pct < 30)      { sb.className = 'sensor-status dry';  sb.textContent = 'แห้ง ☀️'; }
+  else if (pct < 65) { sb.className = 'sensor-status wet';  sb.textContent = 'ชื้น 💧'; }
+  else               { sb.className = 'sensor-status rain'; sb.textContent = 'เปียก 🌧'; }
+}
+
+// ─── Toggle & Device Control ───────────────
+function toggleDevice(id) {
+  const tog = document.getElementById(id + '-toggle');
+  const t   = new Date();
+  const ts  = t.getHours().toString().padStart(2, '0') + ':' + t.getMinutes().toString().padStart(2, '0');
+  if (id === 'laundry') setLaundryState(tog.checked, true);
+  else setWindowState(id, tog.checked, ts, true);  // ← ส่ง target เฉพาะบานที่กด
+}
+
+function setWindowState(id, isOpen, ts, sendMqtt) {
+  state.windows[id] = isOpen;
+  const iw    = document.getElementById(id + '-icon-wrap');
+  const badge = document.getElementById(id + '-badge');
+  const loc   = document.getElementById(id + '-loc');
+  const tog   = document.getElementById(id + '-toggle');
+  iw.className    = 'device-icon-wrap ' + (isOpen ? 'open' : 'closed');
+  iw.innerHTML    = isOpen ? SVG_WIN_OPEN : SVG_WIN_CLOSED;
+  badge.className = 'device-badge ' + (isOpen ? 'open' : 'closed');
+  badge.textContent = isOpen ? 'เปิด' : 'ปิด';
+  if (loc) loc.textContent = isOpen ? 'เปิด' : 'ปิด';
+  if (tog) tog.checked = isOpen;
+  if (ts) addWinRecord(id, isOpen, ts);
+  // ← ส่ง target เฉพาะบานที่เปลี่ยน
+  if (sendMqtt) sendCmd({ window: isOpen ? 'open' : 'close', target: id });
+}
+
+function setLaundryState(isOut, sendMqtt) {
+  state.laundry = isOut;
+  const iw    = document.getElementById('laundry-icon-wrap');
+  const badge = document.getElementById('laundry-badge');
+  const tog   = document.getElementById('laundry-toggle');
+  iw.className      = 'device-icon-wrap ' + (isOut ? 'out' : 'in');
+  iw.innerHTML      = isOut ? SVG_LAUNDRY_OUT : SVG_LAUNDRY_IN;
+  badge.className   = 'device-badge ' + (isOut ? 'out' : 'in');
+  badge.textContent = isOut ? 'กางออก' : 'เก็บแล้ว';
+  if (tog) tog.checked = isOut;
+  if (sendMqtt) sendCmd({ laundry: isOut ? 'out' : 'in' });
+}
+
+// ─── Bulk Actions ──────────────────────────
+function closeAllWindows() {
+  const t  = new Date();
+  const ts = t.getHours().toString().padStart(2, '0') + ':' + t.getMinutes().toString().padStart(2, '0');
+  ['win1', 'win2', 'win3'].forEach(w => setWindowState(w, false, ts, false));
+  sendCmd({ window: 'close', target: 'all' });  // ← ส่ง target: 'all' ให้ ESP32 รู้
+  showToast('🔒 ปิดหน้าต่างทั้งหมดแล้ว');
+}
+
+function openAllWindows() {
+  const t  = new Date();
+  const ts = t.getHours().toString().padStart(2, '0') + ':' + t.getMinutes().toString().padStart(2, '0');
+  ['win1', 'win2', 'win3'].forEach(w => setWindowState(w, true, ts, false));
+  sendCmd({ window: 'open', target: 'all' });
+  showToast('🪟 เปิดหน้าต่างทั้งหมดแล้ว');
+}
+
+function collectLaundry() { setLaundryState(false, true); showToast('🧺 เก็บราวผ้าแล้ว'); }
+
+// ─── Records ───────────────────────────────
+function addWinRecord(win, isOpen, time) {
+  const n = { win1: 'หน้าต่าง 1', win2: 'หน้าต่าง 2', win3: 'หน้าต่าง 3' };
+  winRec.unshift({ name: n[win], open: isOpen, time });
+  if (winRec.length > 30) winRec.pop();
+}
+function addRainRecord(label, time) { rainRec.unshift({ label, time }); if (rainRec.length > 30) rainRec.pop(); }
+
+function switchRecTab(tab) {
+  document.getElementById('rec-tab-win').className  = 'tab-btn' + (tab === 'window' ? ' active' : '');
+  document.getElementById('rec-tab-rain').className = 'tab-btn' + (tab === 'rain'   ? ' active' : '');
+  document.getElementById('rec-window-content').style.display = tab === 'window' ? 'block' : 'none';
+  document.getElementById('rec-rain-content').style.display   = tab === 'rain'   ? 'block' : 'none';
+}
+
+function renderRecords() {
+  document.getElementById('rec-count').textContent = `บันทึกทั้งหมด ${winRec.length} รายการ`;
+  const rl = document.getElementById('rec-list');
+  rl.innerHTML = winRec.length === 0
+    ? '<div style="text-align:center;padding:30px;color:var(--text4);font-size:14px">ยังไม่มีประวัติ</div>'
+    : winRec.map(r => `<div class="rec-item"><div class="rec-icon ${r.open ? 'open' : 'closed'}">${r.open ? SVG_WIN_OPEN : SVG_WIN_CLOSED}</div><div class="rec-info"><div class="rec-name">${r.name}</div><div class="rec-time">${r.time} น.</div></div><div class="rec-badge ${r.open ? 'open' : 'closed'}">${r.open ? 'เปิด' : 'ปิด'}</div></div>`).join('');
+
+  document.getElementById('rec-rain-count').textContent = `บันทึกทั้งหมด ${rainRec.length} รายการ`;
+  const rrl = document.getElementById('rec-rain-list');
+  rrl.innerHTML = rainRec.length === 0
+    ? '<div style="text-align:center;padding:30px;color:var(--text4);font-size:14px">ยังไม่มีประวัติ</div>'
+    : rainRec.map(r => `<div class="rec-item"><div class="rec-icon event">${SVG_RAIN}</div><div class="rec-info"><div class="rec-name">${r.label}</div><div class="rec-time">${r.time} น.</div></div></div>`).join('');
+}
+
+// ─── Rain Canvas FX ────────────────────────
+const canvas = document.getElementById('rain-canvas');
+const ctx    = canvas.getContext('2d');
+let drops = [], rainActive = false, rainRAF = null;
+
+function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+function initDrops() {
+  drops = [];
+  const c = Math.floor(canvas.width / 3.5);
+  for (let i = 0; i < c; i++) drops.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, len: Math.random() * 22 + 10, speed: Math.random() * 6 + 8, thick: Math.random() * 1.2 + 0.4, alpha: Math.random() * 0.4 + 0.2 });
+}
+
+function drawRain() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drops.forEach(d => {
+    ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - d.len * 0.15, d.y + d.len);
+    ctx.strokeStyle = `rgba(170,210,255,${d.alpha})`; ctx.lineWidth = d.thick; ctx.lineCap = 'round'; ctx.stroke();
+    d.y += d.speed; d.x -= d.speed * 0.15;
+    if (d.y > canvas.height) { d.y = -d.len; d.x = Math.random() * canvas.width; }
+  });
+  if (rainActive) rainRAF = requestAnimationFrame(drawRain);
+}
+
+function startRain() {
+  if (rainActive) return; rainActive = true; initDrops();
+  canvas.classList.add('active'); document.getElementById('rain-overlay').classList.add('active');
+  document.getElementById('weatherCard').classList.add('raining');
+  drawRain();
+}
+
+function stopRain() {
+  rainActive = false; cancelAnimationFrame(rainRAF);
+  canvas.classList.remove('active'); document.getElementById('rain-overlay').classList.remove('active');
+  document.getElementById('weatherCard').classList.remove('raining');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+// ─── Auto Open Countdown ───────────────────
+const AUTO_DELAY = 120;
+let cdTimer = null, cdSec = AUTO_DELAY;
+
+function startAutoOpenCountdown() {
+  clearAutoOpenTimer();
+  cdSec = AUTO_DELAY;
+  const badge = document.getElementById('countdown-badge');
+  const secEl = document.getElementById('countdown-sec');
+  badge.style.display = 'block';
+  secEl.textContent   = cdSec;
+  cdTimer = setInterval(() => {
+    cdSec--;
+    secEl.textContent = cdSec;
+    if (cdSec <= 0) { clearAutoOpenTimer(); doAutoOpen(); }
+  }, 1000);
+}
+
+function clearAutoOpenTimer() {
+  if (cdTimer) { clearInterval(cdTimer); cdTimer = null; }
+  document.getElementById('countdown-badge').style.display = 'none';
+}
+
+function doAutoOpen() {
+  clearAutoOpenTimer();
+  const t  = new Date();
+  const ts = t.getHours().toString().padStart(2, '0') + ':' + t.getMinutes().toString().padStart(2, '0');
+  openAllWindows();
+  setLaundryState(true, false);
+  sendCmd({ laundry: 'out' });
+  showToast('☀️ ฝนหยุด 2 นาที — เปิดหน้าต่าง+ราวผ้าแล้ว');
+  addRainRecord('เปิดหน้าต่าง+ราวผ้าอัตโนมัติ', ts);
+}
+
+// ─── Toast ─────────────────────────────────
+let toastT;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ─── Init ──────────────────────────────────
+// กำหนด icon เริ่มต้นให้ทุก device card
+['win1', 'win2', 'win3'].forEach(w => {
+  const iw = document.getElementById(w + '-icon-wrap');
+  const tog = document.getElementById(w + '-toggle');
+  iw.innerHTML = tog.checked ? SVG_WIN_OPEN : SVG_WIN_CLOSED;
+});
+document.getElementById('laundry-icon-wrap').innerHTML = SVG_LAUNDRY_OUT;
+
+setInterval(() => {
+  const now = new Date();
+  document.getElementById('mon-time').textContent = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0') + ' น.';
+}, 30000);
+
+updateSensorUI(3800);
+connectMQTT();
+fetchWeather('Bangkok');
+setInterval(() => fetchWeather(document.getElementById('setup-city').value || 'Bangkok'), 10 * 60 * 1000);
+</script>
+</body>
+</html>
