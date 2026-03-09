@@ -76,15 +76,44 @@ function goPage(p) {
 
 // ── Weather API ───────────────────────────────────────────────
 const CITY_COORDS = {
-  'Bangkok':    { lat: 13.75, lon: 100.52, name: 'กรุงเทพมหานคร' },
-  'Chiang Mai': { lat: 18.79, lon: 98.98,  name: 'เชียงใหม่' },
-  'Phuket':     { lat: 7.89,  lon: 98.39,  name: 'ภูเก็ต' },
-  'Pattaya':    { lat: 12.93, lon: 100.88, name: 'พัทยา' },
-  'Khon Kaen':  { lat: 16.44, lon: 102.83, name: 'ขอนแก่น' },
+  // ภาษาอังกฤษ
+  'Bangkok':           { lat: 13.75, lon: 100.52, name: 'กรุงเทพมหานคร' },
+  'Chiang Mai':        { lat: 18.79, lon: 98.98,  name: 'เชียงใหม่' },
+  'Phuket':            { lat: 7.89,  lon: 98.39,  name: 'ภูเก็ต' },
+  'Pattaya':           { lat: 12.93, lon: 100.88, name: 'พัทยา' },
+  'Khon Kaen':         { lat: 16.44, lon: 102.83, name: 'ขอนแก่น' },
+  'Chiang Rai':        { lat: 19.91, lon: 99.83,  name: 'เชียงราย' },
+  'Nakhon Ratchasima': { lat: 14.97, lon: 102.10, name: 'นครราชสีมา' },
+  'Hat Yai':           { lat: 7.01,  lon: 100.47, name: 'หาดใหญ่' },
+  'Udon Thani':        { lat: 17.41, lon: 102.79, name: 'อุดรธานี' },
+  // ภาษาไทย
+  'กรุงเทพ':           { lat: 13.75, lon: 100.52, name: 'กรุงเทพมหานคร' },
+  'กรุงเทพมหานคร':     { lat: 13.75, lon: 100.52, name: 'กรุงเทพมหานคร' },
+  'เชียงใหม่':         { lat: 18.79, lon: 98.98,  name: 'เชียงใหม่' },
+  'ภูเก็ต':            { lat: 7.89,  lon: 98.39,  name: 'ภูเก็ต' },
+  'พัทยา':             { lat: 12.93, lon: 100.88, name: 'พัทยา' },
+  'ขอนแก่น':           { lat: 16.44, lon: 102.83, name: 'ขอนแก่น' },
+  'เชียงราย':          { lat: 19.91, lon: 99.83,  name: 'เชียงราย' },
+  'นครราชสีมา':        { lat: 14.97, lon: 102.10, name: 'นครราชสีมา' },
+  'โคราช':             { lat: 14.97, lon: 102.10, name: 'นครราชสีมา' },
+  'หาดใหญ่':           { lat: 7.01,  lon: 100.47, name: 'หาดใหญ่' },
+  'อุดรธานี':          { lat: 17.41, lon: 102.79, name: 'อุดรธานี' },
+  'อุดร':              { lat: 17.41, lon: 102.79, name: 'อุดรธานี' },
 };
 
+function findCity(input) {
+  if (!input) return CITY_COORDS['Bangkok'];
+  const trimmed = input.trim();
+  if (CITY_COORDS[trimmed]) return CITY_COORDS[trimmed];
+  const lower = trimmed.toLowerCase();
+  const key = Object.keys(CITY_COORDS).find(k =>
+    k.toLowerCase().includes(lower) || lower.includes(k.toLowerCase())
+  );
+  return key ? CITY_COORDS[key] : null;
+}
+
 async function fetchWeather(city = 'Bangkok') {
-  const c = CITY_COORDS[city] || CITY_COORDS['Bangkok'];
+  const c = findCity(city) || CITY_COORDS['Bangkok'];
   try {
     const url = `https://api.open-meteo.com/v1/forecast`
       + `?latitude=${c.lat}&longitude=${c.lon}`
